@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+from pytest import mark
 from cerberus import Validator, errors
 from cerberus.tests import assert_fail
 
@@ -59,10 +60,11 @@ def test__error_3():
     assert error.is_logic_error
 
 
-def test_error_tree_from_subschema(validator):
+@mark.asyncio
+async def test_error_tree_from_subschema(validator):
     schema = {'foo': {'schema': {'bar': {'type': 'string'}}}}
     document = {'foo': {'bar': 0}}
-    assert_fail(document, schema, validator=validator)
+    await assert_fail(document, schema, validator=validator)
     d_error_tree = validator.document_error_tree
     s_error_tree = validator.schema_error_tree
 
@@ -84,10 +86,11 @@ def test_error_tree_from_subschema(validator):
     )
 
 
-def test_error_tree_from_anyof(validator):
+@mark.asyncio
+async def test_error_tree_from_anyof(validator):
     schema = {'foo': {'anyof': [{'type': 'string'}, {'type': 'integer'}]}}
     document = {'foo': []}
-    assert_fail(document, schema, validator=validator)
+    await assert_fail(document, schema, validator=validator)
     d_error_tree = validator.document_error_tree
     s_error_tree = validator.schema_error_tree
     assert 'foo' in d_error_tree
@@ -100,7 +103,8 @@ def test_error_tree_from_anyof(validator):
     assert s_error_tree['foo']['anyof'][0]['type'].errors[0].value == []
 
 
-def test_nested_error_paths(validator):
+@mark.asyncio
+async def test_nested_error_paths(validator):
     # interpreters of the same version on some platforms showed different sort results
     # over various runs:
     def assert_has_all_errors(errors, *ref_errs):
@@ -122,7 +126,7 @@ def test_nested_error_paths(validator):
         'a_dict': {0: 'abc', 'one': 'abc', 2: 'aBc', 'three': 'abC'},
         'a_list': [0, 'abc', 'abC'],
     }
-    assert_fail(document, schema, validator=validator)
+    await assert_fail(document, schema, validator=validator)
 
     det = validator.document_error_tree
     set = validator.schema_error_tree
@@ -245,7 +249,8 @@ def test_nested_error_paths(validator):
     assert set['a_list']['schema']['type'].errors[0] == ref_err5
 
 
-def test_path_resolution_for_registry_references():
+@mark.asyncio
+async def test_path_resolution_for_registry_references():
     class CustomValidator(Validator):
         def _normalize_coerce_custom(self, value):
             raise Exception("Failed coerce")
@@ -255,7 +260,7 @@ def test_path_resolution_for_registry_references():
         "schema1", {"child": {"type": "boolean", "coerce": "custom"}}
     )
     validator.schema = {"parent": {"schema": "schema1"}}
-    validator.validate({"parent": {"child": "["}})
+    await validator.validate({"parent": {"child": "["}})
 
     expected = {
         'parent': [
@@ -270,11 +275,12 @@ def test_path_resolution_for_registry_references():
     assert validator.errors == expected
 
 
-def test_queries():
+@mark.asyncio
+async def test_queries():
     schema = {'foo': {'type': 'dict', 'schema': {'bar': {'type': 'number'}}}}
     document = {'foo': {'bar': 'zero'}}
     validator = Validator(schema)
-    validator(document)
+    await validator(document)
 
     assert 'foo' in validator.document_error_tree
     assert 'bar' in validator.document_error_tree['foo']
@@ -330,7 +336,8 @@ def test_basic_error_handler():
     assert handler(_errors) == ref
 
 
-def test_basic_error_of_errors(validator):
+@mark.asyncio
+async def test_basic_error_of_errors(validator):
     schema = {'foo': {'oneof': [{'type': 'integer'}, {'type': 'string'}]}}
     document = {'foo': 23.42}
     error = ('foo', ('foo', 'oneof'), errors.ONEOF, schema['foo']['oneof'], ())
@@ -338,7 +345,7 @@ def test_basic_error_of_errors(validator):
         (error[0], error[1] + (0, 'type'), errors.BAD_TYPE, 'integer'),
         (error[0], error[1] + (1, 'type'), errors.BAD_TYPE, 'string'),
     ]
-    assert_fail(
+    await assert_fail(
         document, schema, validator=validator, error=error, child_errors=child_errors
     )
     assert validator.errors == {
@@ -352,7 +359,8 @@ def test_basic_error_of_errors(validator):
     }
 
 
-def test_wrong_amount_of_items(validator):
+@mark.asyncio
+async def test_wrong_amount_of_items(validator):
     # https://github.com/pyeve/cerberus/issues/505
     validator.schema = {
         'test_list': {
@@ -361,5 +369,5 @@ def test_wrong_amount_of_items(validator):
             'items': [{'type': 'string'}, {'type': 'string'}],
         }
     }
-    validator({'test_list': ['test']})
+    await validator({'test_list': ['test']})
     assert validator.errors == {'test_list': ["length of list should be 2, it is 1"]}

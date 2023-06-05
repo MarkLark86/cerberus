@@ -21,20 +21,23 @@ from cerberus.tests import (
 from cerberus.tests.conftest import sample_schema
 
 
-def test_empty_document():
-    assert_document_error(None, sample_schema, None, errors.DOCUMENT_MISSING)
+@mark.asyncio
+async def test_empty_document():
+    await assert_document_error(None, sample_schema, None, errors.DOCUMENT_MISSING)
 
 
-def test_bad_document_type():
+@mark.asyncio
+async def test_bad_document_type():
     document = "not a dict"
-    assert_document_error(
+    await assert_document_error(
         document, sample_schema, None, errors.DOCUMENT_FORMAT.format(document)
     )
 
 
-def test_unknown_field(validator):
+@mark.asyncio
+async def test_unknown_field(validator):
     field = 'surname'
-    assert_fail(
+    await assert_fail(
         {field: 'doe'},
         validator=validator,
         error=(field, (), errors.UNKNOWN_FIELD, None),
@@ -42,13 +45,15 @@ def test_unknown_field(validator):
     assert validator.errors == {field: ['unknown field']}
 
 
-def test_empty_field_definition(document):
+@mark.asyncio
+async def test_empty_field_definition(document):
     field = 'name'
     schema = {field: {}}
-    assert_success(document, schema)
+    await assert_success(document, schema)
 
 
-def test_required_field(schema):
+@mark.asyncio
+async def test_required_field(schema):
     field = 'a_required_string'
     required_string_extension = {
         'a_required_string': {
@@ -59,47 +64,52 @@ def test_required_field(schema):
         }
     }
     schema.update(required_string_extension)
-    assert_fail(
+    await assert_fail(
         {'an_integer': 1},
         schema,
         error=(field, (field, 'required'), errors.REQUIRED_FIELD, True),
     )
 
 
-def test_nullable_field():
-    assert_success({'a_nullable_integer': None})
-    assert_success({'a_nullable_integer': 3})
-    assert_success({'a_nullable_field_without_type': None})
-    assert_fail({'a_nullable_integer': "foo"})
-    assert_fail({'an_integer': None})
-    assert_fail({'a_not_nullable_field_without_type': None})
+@mark.asyncio
+async def test_nullable_field():
+    await assert_success({'a_nullable_integer': None})
+    await assert_success({'a_nullable_integer': 3})
+    await assert_success({'a_nullable_field_without_type': None})
+    await assert_fail({'a_nullable_integer': "foo"})
+    await assert_fail({'an_integer': None})
+    await assert_fail({'a_not_nullable_field_without_type': None})
 
 
-def test_nullable_skips_allowed():
+@mark.asyncio
+async def test_nullable_skips_allowed():
     schema = {'role': {'allowed': ['agent', 'client', 'supplier'], 'nullable': True}}
-    assert_success({'role': None}, schema)
+    await assert_success({'role': None}, schema)
 
 
-def test_readonly_field():
+@mark.asyncio
+async def test_readonly_field():
     field = 'a_readonly_string'
-    assert_fail(
+    await assert_fail(
         {field: 'update me if you can'},
         error=(field, (field, 'readonly'), errors.READONLY_FIELD, True),
     )
 
 
-def test_readonly_field_first_rule():
+@mark.asyncio
+async def test_readonly_field_first_rule():
     # test that readonly rule is checked before any other rule, and blocks.
     # See #63.
     schema = {'a_readonly_number': {'type': 'integer', 'readonly': True, 'max': 1}}
     v = Validator(schema)
-    v.validate({'a_readonly_number': 2})
+    await v.validate({'a_readonly_number': 2})
     # it would be a list if there's more than one error; we get a dict
     # instead.
     assert 'read-only' in v.errors['a_readonly_number'][0]
 
 
-def test_readonly_field_with_default_value():
+@mark.asyncio
+async def test_readonly_field_with_default_value():
     schema = {
         'created': {'type': 'string', 'readonly': True, 'default': 'today'},
         'modified': {
@@ -108,7 +118,7 @@ def test_readonly_field_with_default_value():
             'default_setter': lambda d: d['created'],
         },
     }
-    assert_success({}, schema)
+    await assert_success({}, schema)
     expected_errors = [
         (
             'created',
@@ -123,15 +133,16 @@ def test_readonly_field_with_default_value():
             schema['modified']['readonly'],
         ),
     ]
-    assert_fail(
+    await assert_fail(
         {'created': 'tomorrow', 'modified': 'today'}, schema, errors=expected_errors
     )
-    assert_fail(
+    await assert_fail(
         {'created': 'today', 'modified': 'today'}, schema, errors=expected_errors
     )
 
 
-def test_nested_readonly_field_with_default_value():
+@mark.asyncio
+async def test_nested_readonly_field_with_default_value():
     schema = {
         'some_field': {
             'type': 'dict',
@@ -145,7 +156,7 @@ def test_nested_readonly_field_with_default_value():
             },
         }
     }
-    assert_success({'some_field': {}}, schema)
+    await assert_success({'some_field': {}}, schema)
     expected_errors = [
         (
             ('some_field', 'created'),
@@ -160,67 +171,78 @@ def test_nested_readonly_field_with_default_value():
             schema['some_field']['schema']['modified']['readonly'],
         ),
     ]
-    assert_fail(
+    await assert_fail(
         {'some_field': {'created': 'tomorrow', 'modified': 'now'}},
         schema,
         errors=expected_errors,
     )
-    assert_fail(
+    await assert_fail(
         {'some_field': {'created': 'today', 'modified': 'today'}},
         schema,
         errors=expected_errors,
     )
 
 
-def test_repeated_readonly(validator):
+@mark.asyncio
+async def test_repeated_readonly(validator):
     # https://github.com/pyeve/cerberus/issues/311
     validator.schema = {'id': {'readonly': True}}
-    assert_fail({'id': 0}, validator=validator)
-    assert_fail({'id': 0}, validator=validator)
+    await assert_fail({'id': 0}, validator=validator)
+    await assert_fail({'id': 0}, validator=validator)
 
 
-def test_not_a_string():
-    assert_bad_type('a_string', 'string', 1)
+@mark.asyncio
+async def test_not_a_string():
+    await assert_bad_type('a_string', 'string', 1)
 
 
-def test_not_a_binary():
+@mark.asyncio
+async def test_not_a_binary():
     # 'u' literal prefix produces type `str` in Python 3
-    assert_bad_type('a_binary', 'binary', u"i'm not a binary")
+    await assert_bad_type('a_binary', 'binary', u"i'm not a binary")
 
 
-def test_not_a_integer():
-    assert_bad_type('an_integer', 'integer', "i'm not an integer")
+@mark.asyncio
+async def test_not_a_integer():
+    await assert_bad_type('an_integer', 'integer', "i'm not an integer")
 
 
-def test_not_a_boolean():
-    assert_bad_type('a_boolean', 'boolean', "i'm not a boolean")
+@mark.asyncio
+async def test_not_a_boolean():
+    await assert_bad_type('a_boolean', 'boolean', "i'm not a boolean")
 
 
-def test_not_a_datetime():
-    assert_bad_type('a_datetime', 'datetime', "i'm not a datetime")
+@mark.asyncio
+async def test_not_a_datetime():
+    await assert_bad_type('a_datetime', 'datetime', "i'm not a datetime")
 
 
-def test_not_a_float():
-    assert_bad_type('a_float', 'float', "i'm not a float")
+@mark.asyncio
+async def test_not_a_float():
+    await assert_bad_type('a_float', 'float', "i'm not a float")
 
 
-def test_not_a_number():
-    assert_bad_type('a_number', 'number', "i'm not a number")
+@mark.asyncio
+async def test_not_a_number():
+    await assert_bad_type('a_number', 'number', "i'm not a number")
 
 
-def test_not_a_list():
-    assert_bad_type('a_list_of_values', 'list', "i'm not a list")
+@mark.asyncio
+async def test_not_a_list():
+    await assert_bad_type('a_list_of_values', 'list', "i'm not a list")
 
 
-def test_not_a_dict():
-    assert_bad_type('a_dict', 'dict', "i'm not a dict")
+@mark.asyncio
+async def test_not_a_dict():
+    await assert_bad_type('a_dict', 'dict', "i'm not a dict")
 
 
-def test_bad_max_length(schema):
+@mark.asyncio
+async def test_bad_max_length(schema):
     field = 'a_string'
     max_length = schema[field]['maxlength']
     value = "".join(choice(ascii_lowercase) for i in range(max_length + 1))
-    assert_fail(
+    await assert_fail(
         {field: value},
         error=(
             field,
@@ -232,11 +254,12 @@ def test_bad_max_length(schema):
     )
 
 
-def test_bad_max_length_binary(schema):
+@mark.asyncio
+async def test_bad_max_length_binary(schema):
     field = 'a_binary'
     max_length = schema[field]['maxlength']
     value = b'\x00' * (max_length + 1)
-    assert_fail(
+    await assert_fail(
         {field: value},
         error=(
             field,
@@ -248,11 +271,12 @@ def test_bad_max_length_binary(schema):
     )
 
 
-def test_bad_min_length(schema):
+@mark.asyncio
+async def test_bad_min_length(schema):
     field = 'a_string'
     min_length = schema[field]['minlength']
     value = "".join(choice(ascii_lowercase) for i in range(min_length - 1))
-    assert_fail(
+    await assert_fail(
         {field: value},
         error=(
             field,
@@ -264,11 +288,12 @@ def test_bad_min_length(schema):
     )
 
 
-def test_bad_min_length_binary(schema):
+@mark.asyncio
+async def test_bad_min_length_binary(schema):
     field = 'a_binary'
     min_length = schema[field]['minlength']
     value = b'\x00' * (min_length - 1)
-    assert_fail(
+    await assert_fail(
         {field: value},
         error=(
             field,
@@ -280,39 +305,42 @@ def test_bad_min_length_binary(schema):
     )
 
 
-def test_bad_max_value(schema):
-    def assert_bad_max_value(field, inc):
+@mark.asyncio
+async def test_bad_max_value(schema):
+    async def assert_bad_max_value(field, inc):
         max_value = schema[field]['max']
         value = max_value + inc
-        assert_fail(
+        await assert_fail(
             {field: value}, error=(field, (field, 'max'), errors.MAX_VALUE, max_value)
         )
 
     field = 'an_integer'
-    assert_bad_max_value(field, 1)
+    await assert_bad_max_value(field, 1)
     field = 'a_float'
-    assert_bad_max_value(field, 1.0)
+    await assert_bad_max_value(field, 1.0)
     field = 'a_number'
-    assert_bad_max_value(field, 1)
+    await assert_bad_max_value(field, 1)
 
 
-def test_bad_min_value(schema):
-    def assert_bad_min_value(field, inc):
+@mark.asyncio
+async def test_bad_min_value(schema):
+    async def assert_bad_min_value(field, inc):
         min_value = schema[field]['min']
         value = min_value - inc
-        assert_fail(
+        await assert_fail(
             {field: value}, error=(field, (field, 'min'), errors.MIN_VALUE, min_value)
         )
 
     field = 'an_integer'
-    assert_bad_min_value(field, 1)
+    await assert_bad_min_value(field, 1)
     field = 'a_float'
-    assert_bad_min_value(field, 1.0)
+    await assert_bad_min_value(field, 1.0)
     field = 'a_number'
-    assert_bad_min_value(field, 1)
+    await assert_bad_min_value(field, 1)
 
 
-def test_bad_schema():
+@mark.asyncio
+async def test_bad_schema():
     field = 'a_dict'
     subschema_field = 'address'
     schema = {
@@ -327,7 +355,7 @@ def test_bad_schema():
     document = {field: {subschema_field: 34}}
     validator = Validator(schema)
 
-    assert_fail(
+    await assert_fail(
         document,
         validator=validator,
         error=(
@@ -366,7 +394,8 @@ def test_bad_schema():
     )
 
 
-def test_bad_valuesrules():
+@mark.asyncio
+async def test_bad_valuesrules():
     field = 'a_dict_with_valuesrules'
     schema_field = 'a_string'
     value = {schema_field: 'not an integer'}
@@ -379,17 +408,18 @@ def test_bad_valuesrules():
             'integer',
         )
     ]
-    assert_fail(
+    await assert_fail(
         {field: value},
         error=(field, (field, 'valuesrules'), errors.VALUESRULES, {'type': 'integer'}),
         child_errors=exp_child_errors,
     )
 
 
-def test_bad_list_of_values(validator):
+@mark.asyncio
+async def test_bad_list_of_values(validator):
     field = 'a_list_of_values'
     value = ['a string', 'not an integer']
-    assert_fail(
+    await assert_fail(
         {field: value},
         validator=validator,
         error=(
@@ -411,7 +441,7 @@ def test_bad_list_of_values(validator):
     )
 
     value = ['a string', 10, 'an extra item']
-    assert_fail(
+    await assert_fail(
         {field: value},
         error=(
             field,
@@ -423,13 +453,15 @@ def test_bad_list_of_values(validator):
     )
 
 
-def test_bad_list_of_integers():
+@mark.asyncio
+async def test_bad_list_of_integers():
     field = 'a_list_of_integers'
     value = [34, 'not an integer']
-    assert_fail({field: value})
+    await assert_fail({field: value})
 
 
-def test_bad_list_of_dicts():
+@mark.asyncio
+async def test_bad_list_of_dicts():
     field = 'a_list_of_dicts'
     map_schema = {
         'sku': {'type': 'string'},
@@ -441,7 +473,7 @@ def test_bad_list_of_dicts():
     value = [{'sku': 'KT123', 'price': '100'}]
     document = {field: value}
 
-    assert_fail(
+    await assert_fail(
         document,
         validator=validator,
         error=(field, (field, 'schema'), errors.SEQUENCE_SCHEMA, seq_schema),
@@ -462,17 +494,18 @@ def test_bad_list_of_dicts():
     exp_child_errors = [
         ((field, 0), (field, 'schema', 'type'), errors.BAD_TYPE, 'dict', ())
     ]
-    assert_fail(
+    await assert_fail(
         {field: value},
         error=(field, (field, 'schema'), errors.SEQUENCE_SCHEMA, seq_schema),
         child_errors=exp_child_errors,
     )
 
 
-def test_array_unallowed():
+@mark.asyncio
+async def test_array_unallowed():
     field = 'an_array'
     value = ['agent', 'client', 'profit']
-    assert_fail(
+    await assert_fail(
         {field: value},
         error=(
             field,
@@ -484,10 +517,11 @@ def test_array_unallowed():
     )
 
 
-def test_string_unallowed():
+@mark.asyncio
+async def test_string_unallowed():
     field = 'a_restricted_string'
     value = 'profit'
-    assert_fail(
+    await assert_fail(
         {field: value},
         error=(
             field,
@@ -499,21 +533,24 @@ def test_string_unallowed():
     )
 
 
-def test_integer_unallowed():
+@mark.asyncio
+async def test_integer_unallowed():
     field = 'a_restricted_integer'
     value = 2
-    assert_fail(
+    await assert_fail(
         {field: value},
         error=(field, (field, 'allowed'), errors.UNALLOWED_VALUE, [-1, 0, 1], value),
     )
 
 
-def test_integer_allowed():
-    assert_success({'a_restricted_integer': -1})
+@mark.asyncio
+async def test_integer_allowed():
+    await assert_success({'a_restricted_integer': -1})
 
 
-def test_validate_update():
-    assert_success(
+@mark.asyncio
+async def test_validate_update():
+    await assert_success(
         {
             'an_integer': 100,
             'a_dict': {'address': 'adr'},
@@ -523,68 +560,79 @@ def test_validate_update():
     )
 
 
-def test_string():
-    assert_success({'a_string': 'john doe'})
+@mark.asyncio
+async def test_string():
+    await assert_success({'a_string': 'john doe'})
 
 
-def test_string_allowed():
-    assert_success({'a_restricted_string': 'client'})
+@mark.asyncio
+async def test_string_allowed():
+    await assert_success({'a_restricted_string': 'client'})
 
 
-def test_integer():
-    assert_success({'an_integer': 50})
+@mark.asyncio
+async def test_integer():
+    await assert_success({'an_integer': 50})
 
 
-def test_boolean():
-    assert_success({'a_boolean': True})
+@mark.asyncio
+async def test_boolean():
+    await assert_success({'a_boolean': True})
 
 
-def test_datetime():
-    assert_success({'a_datetime': datetime.now()})
+@mark.asyncio
+async def test_datetime():
+    await assert_success({'a_datetime': datetime.now()})
 
 
-def test_float():
-    assert_success({'a_float': 3.5})
-    assert_success({'a_float': 1})
+@mark.asyncio
+async def test_float():
+    await assert_success({'a_float': 3.5})
+    await assert_success({'a_float': 1})
 
 
-def test_number():
-    assert_success({'a_number': 3.5})
-    assert_success({'a_number': 3})
+@mark.asyncio
+async def test_number():
+    await assert_success({'a_number': 3.5})
+    await assert_success({'a_number': 3})
 
 
-def test_array():
-    assert_success({'an_array': ['agent', 'client']})
+@mark.asyncio
+async def test_array():
+    await assert_success({'an_array': ['agent', 'client']})
 
 
-def test_set():
-    assert_success({'a_set': set(['hello', 1])})
+@mark.asyncio
+async def test_set():
+    await assert_success({'a_set': set(['hello', 1])})
 
 
-def test_one_of_two_types(validator):
+@mark.asyncio
+async def test_one_of_two_types(validator):
     field = 'one_or_more_strings'
-    assert_success({field: 'foo'})
-    assert_success({field: ['foo', 'bar']})
+    await assert_success({field: 'foo'})
+    await assert_success({field: ['foo', 'bar']})
     exp_child_errors = [
         ((field, 1), (field, 'schema', 'type'), errors.BAD_TYPE, 'string')
     ]
-    assert_fail(
+    await assert_fail(
         {field: ['foo', 23]},
         validator=validator,
         error=(field, (field, 'schema'), errors.SEQUENCE_SCHEMA, {'type': 'string'}),
         child_errors=exp_child_errors,
     )
-    assert_fail(
+    await assert_fail(
         {field: 23},
         error=((field,), (field, 'type'), errors.BAD_TYPE, ['string', 'list']),
     )
     assert validator.errors == {field: [{1: ['must be of string type']}]}
 
 
-def test_regex(validator):
+@mark.asyncio
+async def test_regex(validator):
     field = 'a_regex_email'
-    assert_success({field: 'valid.email@gmail.com'}, validator=validator)
-    assert_fail(
+    await assert_success({field: 'valid.email@gmail.com'}, validator=validator)
+    await assert_fail(
         {field: 'invalid'},
         update=True,
         error=(
@@ -596,13 +644,15 @@ def test_regex(validator):
     )
 
 
-def test_regex_with_flag():
-    assert_success({"item": "hOly grAil"}, {"item": {"regex": "(?i)holy grail"}})
-    assert_fail({"item": "hOly grAil"}, {"item": {"regex": "holy grail"}})
+@mark.asyncio
+async def test_regex_with_flag():
+    await assert_success({"item": "hOly grAil"}, {"item": {"regex": "(?i)holy grail"}})
+    await assert_fail({"item": "hOly grAil"}, {"item": {"regex": "holy grail"}})
 
 
-def test_a_list_of_dicts():
-    assert_success(
+@mark.asyncio
+async def test_a_list_of_dicts():
+    await assert_success(
         {
             'a_list_of_dicts': [
                 {'sku': 'AK345', 'price': 100},
@@ -612,21 +662,25 @@ def test_a_list_of_dicts():
     )
 
 
-def test_a_list_of_values():
-    assert_success({'a_list_of_values': ['hello', 100]})
+@mark.asyncio
+async def test_a_list_of_values():
+    await assert_success({'a_list_of_values': ['hello', 100]})
 
 
-def test_an_array_from_set():
-    assert_success({'an_array_from_set': ['agent', 'client']})
+@mark.asyncio
+async def test_an_array_from_set():
+    await assert_success({'an_array_from_set': ['agent', 'client']})
 
 
-def test_a_list_of_integers():
-    assert_success({'a_list_of_integers': [99, 100]})
+@mark.asyncio
+async def test_a_list_of_integers():
+    await assert_success({'a_list_of_integers': [99, 100]})
 
 
-def test_a_dict(schema):
-    assert_success({'a_dict': {'address': 'i live here', 'city': 'in my own town'}})
-    assert_fail(
+@mark.asyncio
+async def test_a_dict(schema):
+    await assert_success({'a_dict': {'address': 'i live here', 'city': 'in my own town'}})
+    await assert_fail(
         {'a_dict': {'address': 8545}},
         error=(
             'a_dict',
@@ -651,8 +705,9 @@ def test_a_dict(schema):
     )
 
 
-def test_a_dict_with_valuesrules(validator):
-    assert_success(
+@mark.asyncio
+async def test_a_dict_with_valuesrules(validator):
+    await assert_success(
         {'a_dict_with_valuesrules': {'an integer': 99, 'another integer': 100}}
     )
 
@@ -671,7 +726,7 @@ def test_a_dict_with_valuesrules(validator):
         )
     ]
 
-    assert_fail(
+    await assert_fail(
         {'a_dict_with_valuesrules': {'a string': '99'}},
         validator=validator,
         error=error,
@@ -685,23 +740,25 @@ def test_a_dict_with_valuesrules(validator):
 
 # TODO remove 'keyschema' as rule with the next major release
 @mark.parametrize('rule', ('keysrules', 'keyschema'))
-def test_keysrules(rule):
+@mark.asyncio
+async def test_keysrules(rule):
     schema = {
         'a_dict_with_keysrules': {
             'type': 'dict',
             rule: {'type': 'string', 'regex': '[a-z]+'},
         }
     }
-    assert_success({'a_dict_with_keysrules': {'key': 'value'}}, schema=schema)
-    assert_fail({'a_dict_with_keysrules': {'KEY': 'value'}}, schema=schema)
+    await assert_success({'a_dict_with_keysrules': {'key': 'value'}}, schema=schema)
+    await assert_fail({'a_dict_with_keysrules': {'KEY': 'value'}}, schema=schema)
 
 
-def test_a_list_length(schema):
+@mark.asyncio
+async def test_a_list_length(schema):
     field = 'a_list_length'
     min_length = schema[field]['minlength']
     max_length = schema[field]['maxlength']
 
-    assert_fail(
+    await assert_fail(
         {field: [1] * (min_length - 1)},
         error=(
             field,
@@ -714,9 +771,9 @@ def test_a_list_length(schema):
 
     for i in range(min_length, max_length):
         value = [1] * i
-        assert_success({field: value})
+        await assert_success({field: value})
 
-    assert_fail(
+    await assert_fail(
         {field: [1] * (max_length + 1)},
         error=(
             field,
@@ -728,42 +785,44 @@ def test_a_list_length(schema):
     )
 
 
-def test_custom_datatype():
+@mark.asyncio
+async def test_custom_datatype():
     class MyValidator(Validator):
-        def _validate_type_objectid(self, value):
+        async def _validate_type_objectid(self, value):
             if re.match('[a-f0-9]{24}', value):
                 return True
 
     schema = {'test_field': {'type': 'objectid'}}
     validator = MyValidator(schema)
-    assert_success({'test_field': '50ad188438345b1049c88a28'}, validator=validator)
-    assert_fail(
+    await assert_success({'test_field': '50ad188438345b1049c88a28'}, validator=validator)
+    await assert_fail(
         {'test_field': 'hello'},
         validator=validator,
         error=('test_field', ('test_field', 'type'), errors.BAD_TYPE, 'objectid'),
     )
 
 
-def test_custom_datatype_rule():
+@mark.asyncio
+async def test_custom_datatype_rule():
     class MyValidator(Validator):
-        def _validate_min_number(self, min_number, field, value):
+        async def _validate_min_number(self, min_number, field, value):
             """{'type': 'number'}"""
             if value < min_number:
                 self._error(field, 'Below the min')
 
         # TODO replace with TypeDefintion in next major release
-        def _validate_type_number(self, value):
+        async def _validate_type_number(self, value):
             if isinstance(value, int):
                 return True
 
     schema = {'test_field': {'min_number': 1, 'type': 'number'}}
     validator = MyValidator(schema)
-    assert_fail(
+    await assert_fail(
         {'test_field': '0'},
         validator=validator,
         error=('test_field', ('test_field', 'type'), errors.BAD_TYPE, 'number'),
     )
-    assert_fail(
+    await assert_fail(
         {'test_field': 0},
         validator=validator,
         error=('test_field', (), errors.CUSTOM, None, ('Below the min',)),
@@ -771,17 +830,18 @@ def test_custom_datatype_rule():
     assert validator.errors == {'test_field': ['Below the min']}
 
 
-def test_custom_validator():
+@mark.asyncio
+async def test_custom_validator():
     class MyValidator(Validator):
-        def _validate_isodd(self, isodd, field, value):
+        async def _validate_isodd(self, isodd, field, value):
             """{'type': 'boolean'}"""
             if isodd and not bool(value & 1):
                 self._error(field, 'Not an odd number')
 
     schema = {'test_field': {'isodd': True}}
     validator = MyValidator(schema)
-    assert_success({'test_field': 7}, validator=validator)
-    assert_fail(
+    await assert_success({'test_field': 7}, validator=validator)
+    await assert_fail(
         {'test_field': 6},
         validator=validator,
         error=('test_field', (), errors.CUSTOM, None, ('Not an odd number',)),
@@ -792,40 +852,43 @@ def test_custom_validator():
 @mark.parametrize(
     'value, _type', (('', 'string'), ((), 'list'), ({}, 'dict'), ([], 'list'))
 )
-def test_empty_values(value, _type):
+@mark.asyncio
+async def test_empty_values(value, _type):
     field = 'test'
     schema = {field: {'type': _type}}
     document = {field: value}
 
-    assert_success(document, schema)
+    await assert_success(document, schema)
 
     schema[field]['empty'] = False
-    assert_fail(
+    await assert_fail(
         document,
         schema,
         error=(field, (field, 'empty'), errors.EMPTY_NOT_ALLOWED, False),
     )
 
     schema[field]['empty'] = True
-    assert_success(document, schema)
+    await assert_success(document, schema)
 
 
-def test_empty_skips_regex(validator):
+@mark.asyncio
+async def test_empty_skips_regex(validator):
     schema = {'foo': {'empty': True, 'regex': r'\d?\d\.\d\d', 'type': 'string'}}
-    assert validator({'foo': ''}, schema)
+    assert await validator({'foo': ''}, schema)
 
 
-def test_ignore_none_values():
+@mark.asyncio
+async def test_ignore_none_values():
     field = 'test'
     schema = {field: {'type': 'string', 'empty': False, 'required': False}}
     document = {field: None}
 
     # Test normal behaviour
     validator = Validator(schema, ignore_none_values=False)
-    assert_fail(document, validator=validator)
+    await assert_fail(document, validator=validator)
     validator.schema[field]['required'] = True
-    validator.schema.validate()
-    _errors = assert_fail(document, validator=validator)
+    await validator.schema.validate()
+    _errors = await assert_fail(document, validator=validator)
     assert_not_has_error(
         _errors, field, (field, 'required'), errors.REQUIRED_FIELD, True
     )
@@ -833,55 +896,60 @@ def test_ignore_none_values():
     # Test ignore None behaviour
     validator = Validator(schema, ignore_none_values=True)
     validator.schema[field]['required'] = False
-    validator.schema.validate()
-    assert_success(document, validator=validator)
+    await validator.schema.validate()
+    await assert_success(document, validator=validator)
     validator.schema[field]['required'] = True
-    _errors = assert_fail(schema=schema, document=document, validator=validator)
+    _errors = await assert_fail(schema=schema, document=document, validator=validator)
     assert_has_error(_errors, field, (field, 'required'), errors.REQUIRED_FIELD, True)
     assert_not_has_error(_errors, field, (field, 'type'), errors.BAD_TYPE, 'string')
 
 
-def test_unknown_keys():
+@mark.asyncio
+async def test_unknown_keys():
     schema = {}
 
     # test that unknown fields are allowed when allow_unknown is True.
     v = Validator(allow_unknown=True, schema=schema)
-    assert_success({"unknown1": True, "unknown2": "yes"}, validator=v)
+    await assert_success({"unknown1": True, "unknown2": "yes"}, validator=v)
 
     # test that unknown fields are allowed only if they meet the
     # allow_unknown schema when provided.
     v.allow_unknown = {'type': 'string'}
-    assert_success(document={'name': 'mark'}, validator=v)
-    assert_fail({"name": 1}, validator=v)
+    await assert_success(document={'name': 'mark'}, validator=v)
+    await assert_fail({"name": 1}, validator=v)
 
     # test that unknown fields are not allowed if allow_unknown is False
     v.allow_unknown = False
-    assert_fail({'name': 'mark'}, validator=v)
+    await assert_fail({'name': 'mark'}, validator=v)
 
 
-def test_unknown_key_dict(validator):
+@mark.asyncio
+async def test_unknown_key_dict(validator):
     # https://github.com/pyeve/cerberus/issues/177
     validator.allow_unknown = True
     document = {'a_dict': {'foo': 'foo_value', 'bar': 25}}
-    assert_success(document, {}, validator=validator)
+    await assert_success(document, {}, validator=validator)
 
 
-def test_unknown_key_list(validator):
+@mark.asyncio
+async def test_unknown_key_list(validator):
     # https://github.com/pyeve/cerberus/issues/177
     validator.allow_unknown = True
     document = {'a_dict': ['foo', 'bar']}
-    assert_success(document, {}, validator=validator)
+    await assert_success(document, {}, validator=validator)
 
 
-def test_unknown_keys_list_of_dicts(validator):
+@mark.asyncio
+async def test_unknown_keys_list_of_dicts(validator):
     # test that allow_unknown is honored even for subdicts in lists.
     # https://github.com/pyeve/cerberus/issues/67.
     validator.allow_unknown = True
     document = {'a_list_of_dicts': [{'sku': 'YZ069', 'price': 25, 'extra': True}]}
-    assert_success(document, validator=validator)
+    await assert_success(document, validator=validator)
 
 
-def test_unknown_keys_retain_custom_rules():
+@mark.asyncio
+async def test_unknown_keys_retain_custom_rules():
     # test that allow_unknown schema respect custom validation rules.
     # https://github.com/pyeve/cerberus/issues/#66.
     class CustomValidator(Validator):
@@ -891,10 +959,11 @@ def test_unknown_keys_retain_custom_rules():
 
     validator = CustomValidator({})
     validator.allow_unknown = {"type": "foo"}
-    assert_success(document={"fred": "foo", "barney": "foo"}, validator=validator)
+    await assert_success(document={"fred": "foo", "barney": "foo"}, validator=validator)
 
 
-def test_nested_unknown_keys():
+@mark.asyncio
+async def test_nested_unknown_keys():
     schema = {
         'field1': {
             'type': 'dict',
@@ -903,10 +972,10 @@ def test_nested_unknown_keys():
         }
     }
     document = {'field1': {'nested1': 'foo', 'arb1': 'bar', 'arb2': 42}}
-    assert_success(document=document, schema=schema)
+    await assert_success(document=document, schema=schema)
 
     schema['field1']['allow_unknown'] = {'type': 'string'}
-    assert_fail(document=document, schema=schema)
+    await assert_fail(document=document, schema=schema)
 
 
 def test_novalidate_noerrors(validator):
@@ -917,59 +986,64 @@ def test_novalidate_noerrors(validator):
     assert validator.errors == {}
 
 
-def test_callable_validator():
+@mark.asyncio
+async def test_callable_validator():
     """
     Validator instance is callable, functions as a shorthand
     passthrough to validate()
     """
     schema = {'test_field': {'type': 'string'}}
     v = Validator(schema)
-    assert v.validate({'test_field': 'foo'})
-    assert v({'test_field': 'foo'})
-    assert not v.validate({'test_field': 1})
-    assert not v({'test_field': 1})
+    assert await v.validate({'test_field': 'foo'})
+    assert await v({'test_field': 'foo'})
+    assert not await v.validate({'test_field': 1})
+    assert not await v({'test_field': 1})
 
 
-def test_dependencies_field():
+@mark.asyncio
+async def test_dependencies_field():
     schema = {'test_field': {'dependencies': 'foo'}, 'foo': {'type': 'string'}}
-    assert_success({'test_field': 'foobar', 'foo': 'bar'}, schema)
-    assert_fail({'test_field': 'foobar'}, schema)
+    await assert_success({'test_field': 'foobar', 'foo': 'bar'}, schema)
+    await assert_fail({'test_field': 'foobar'}, schema)
 
 
-def test_dependencies_list():
+@mark.asyncio
+async def test_dependencies_list():
     schema = {
         'test_field': {'dependencies': ['foo', 'bar']},
         'foo': {'type': 'string'},
         'bar': {'type': 'string'},
     }
-    assert_success({'test_field': 'foobar', 'foo': 'bar', 'bar': 'foo'}, schema)
-    assert_fail({'test_field': 'foobar', 'foo': 'bar'}, schema)
+    await assert_success({'test_field': 'foobar', 'foo': 'bar', 'bar': 'foo'}, schema)
+    await assert_fail({'test_field': 'foobar', 'foo': 'bar'}, schema)
 
 
-def test_dependencies_list_with_required_field():
+@mark.asyncio
+async def test_dependencies_list_with_required_field():
     schema = {
         'test_field': {'required': True, 'dependencies': ['foo', 'bar']},
         'foo': {'type': 'string'},
         'bar': {'type': 'string'},
     }
     # False: all dependencies missing
-    assert_fail({'test_field': 'foobar'}, schema)
+    await assert_fail({'test_field': 'foobar'}, schema)
     # False: one of dependencies missing
-    assert_fail({'test_field': 'foobar', 'foo': 'bar'}, schema)
+    await assert_fail({'test_field': 'foobar', 'foo': 'bar'}, schema)
     # False: one of dependencies missing
-    assert_fail({'test_field': 'foobar', 'bar': 'foo'}, schema)
+    await assert_fail({'test_field': 'foobar', 'bar': 'foo'}, schema)
     # False: dependencies are validated and field is required
-    assert_fail({'foo': 'bar', 'bar': 'foo'}, schema)
+    await assert_fail({'foo': 'bar', 'bar': 'foo'}, schema)
     # False: All dependencies are optional but field is still required
-    assert_fail({}, schema)
+    await assert_fail({}, schema)
     # True: dependency missing
-    assert_fail({'foo': 'bar'}, schema)
+    await assert_fail({'foo': 'bar'}, schema)
     # True: dependencies are validated but field is not required
     schema['test_field']['required'] = False
-    assert_success({'foo': 'bar', 'bar': 'foo'}, schema)
+    await assert_success({'foo': 'bar', 'bar': 'foo'}, schema)
 
 
-def test_dependencies_list_with_subodcuments_fields():
+@mark.asyncio
+async def test_dependencies_list_with_subodcuments_fields():
     schema = {
         'test_field': {'dependencies': ['a_dict.foo', 'a_dict.bar']},
         'a_dict': {
@@ -977,75 +1051,80 @@ def test_dependencies_list_with_subodcuments_fields():
             'schema': {'foo': {'type': 'string'}, 'bar': {'type': 'string'}},
         },
     }
-    assert_success(
+    await assert_success(
         {'test_field': 'foobar', 'a_dict': {'foo': 'foo', 'bar': 'bar'}}, schema
     )
-    assert_fail({'test_field': 'foobar', 'a_dict': {}}, schema)
-    assert_fail({'test_field': 'foobar', 'a_dict': {'foo': 'foo'}}, schema)
+    await assert_fail({'test_field': 'foobar', 'a_dict': {}}, schema)
+    await assert_fail({'test_field': 'foobar', 'a_dict': {'foo': 'foo'}}, schema)
 
 
-def test_dependencies_dict():
+@mark.asyncio
+async def test_dependencies_dict():
     schema = {
         'test_field': {'dependencies': {'foo': 'foo', 'bar': 'bar'}},
         'foo': {'type': 'string'},
         'bar': {'type': 'string'},
     }
-    assert_success({'test_field': 'foobar', 'foo': 'foo', 'bar': 'bar'}, schema)
-    assert_fail({'test_field': 'foobar', 'foo': 'foo'}, schema)
-    assert_fail({'test_field': 'foobar', 'foo': 'bar'}, schema)
-    assert_fail({'test_field': 'foobar', 'bar': 'bar'}, schema)
-    assert_fail({'test_field': 'foobar', 'bar': 'foo'}, schema)
-    assert_fail({'test_field': 'foobar'}, schema)
+    await assert_success({'test_field': 'foobar', 'foo': 'foo', 'bar': 'bar'}, schema)
+    await assert_fail({'test_field': 'foobar', 'foo': 'foo'}, schema)
+    await assert_fail({'test_field': 'foobar', 'foo': 'bar'}, schema)
+    await assert_fail({'test_field': 'foobar', 'bar': 'bar'}, schema)
+    await assert_fail({'test_field': 'foobar', 'bar': 'foo'}, schema)
+    await assert_fail({'test_field': 'foobar'}, schema)
 
 
-def test_dependencies_dict_with_required_field():
+@mark.asyncio
+async def test_dependencies_dict_with_required_field():
     schema = {
         'test_field': {'required': True, 'dependencies': {'foo': 'foo', 'bar': 'bar'}},
         'foo': {'type': 'string'},
         'bar': {'type': 'string'},
     }
     # False: all dependencies missing
-    assert_fail({'test_field': 'foobar'}, schema)
+    await assert_fail({'test_field': 'foobar'}, schema)
     # False: one of dependencies missing
-    assert_fail({'test_field': 'foobar', 'foo': 'foo'}, schema)
-    assert_fail({'test_field': 'foobar', 'bar': 'bar'}, schema)
+    await assert_fail({'test_field': 'foobar', 'foo': 'foo'}, schema)
+    await assert_fail({'test_field': 'foobar', 'bar': 'bar'}, schema)
     # False: dependencies are validated and field is required
-    assert_fail({'foo': 'foo', 'bar': 'bar'}, schema)
+    await assert_fail({'foo': 'foo', 'bar': 'bar'}, schema)
     # False: All dependencies are optional, but field is still required
-    assert_fail({}, schema)
+    await assert_fail({}, schema)
     # False: dependency missing
-    assert_fail({'foo': 'bar'}, schema)
+    await assert_fail({'foo': 'bar'}, schema)
 
-    assert_success({'test_field': 'foobar', 'foo': 'foo', 'bar': 'bar'}, schema)
+    await assert_success({'test_field': 'foobar', 'foo': 'foo', 'bar': 'bar'}, schema)
 
     # True: dependencies are validated but field is not required
     schema['test_field']['required'] = False
-    assert_success({'foo': 'bar', 'bar': 'foo'}, schema)
+    await assert_success({'foo': 'bar', 'bar': 'foo'}, schema)
 
 
-def test_dependencies_field_satisfy_nullable_field():
+@mark.asyncio
+async def test_dependencies_field_satisfy_nullable_field():
     # https://github.com/pyeve/cerberus/issues/305
     schema = {'foo': {'nullable': True}, 'bar': {'dependencies': 'foo'}}
 
-    assert_success({'foo': None, 'bar': 1}, schema)
-    assert_success({'foo': None}, schema)
-    assert_fail({'bar': 1}, schema)
+    await assert_success({'foo': None, 'bar': 1}, schema)
+    await assert_success({'foo': None}, schema)
+    await assert_fail({'bar': 1}, schema)
 
 
-def test_dependencies_field_with_mutually_dependent_nullable_fields():
+@mark.asyncio
+async def test_dependencies_field_with_mutually_dependent_nullable_fields():
     # https://github.com/pyeve/cerberus/pull/306
     schema = {
         'foo': {'dependencies': 'bar', 'nullable': True},
         'bar': {'dependencies': 'foo', 'nullable': True},
     }
-    assert_success({'foo': None, 'bar': None}, schema)
-    assert_success({'foo': 1, 'bar': 1}, schema)
-    assert_success({'foo': None, 'bar': 1}, schema)
-    assert_fail({'foo': None}, schema)
-    assert_fail({'foo': 1}, schema)
+    await assert_success({'foo': None, 'bar': None}, schema)
+    await assert_success({'foo': 1, 'bar': 1}, schema)
+    await assert_success({'foo': None, 'bar': 1}, schema)
+    await assert_fail({'foo': None}, schema)
+    await assert_fail({'foo': 1}, schema)
 
 
-def test_dependencies_dict_with_subdocuments_fields():
+@mark.asyncio
+async def test_dependencies_dict_with_subdocuments_fields():
     schema = {
         'test_field': {
             'dependencies': {'a_dict.foo': ['foo', 'bar'], 'a_dict.bar': 'bar'}
@@ -1055,25 +1134,26 @@ def test_dependencies_dict_with_subdocuments_fields():
             'schema': {'foo': {'type': 'string'}, 'bar': {'type': 'string'}},
         },
     }
-    assert_success(
+    await assert_success(
         {'test_field': 'foobar', 'a_dict': {'foo': 'foo', 'bar': 'bar'}}, schema
     )
-    assert_success(
+    await assert_success(
         {'test_field': 'foobar', 'a_dict': {'foo': 'bar', 'bar': 'bar'}}, schema
     )
-    assert_fail({'test_field': 'foobar', 'a_dict': {}}, schema)
-    assert_fail(
+    await assert_fail({'test_field': 'foobar', 'a_dict': {}}, schema)
+    await assert_fail(
         {'test_field': 'foobar', 'a_dict': {'foo': 'foo', 'bar': 'foo'}}, schema
     )
-    assert_fail({'test_field': 'foobar', 'a_dict': {'bar': 'foo'}}, schema)
-    assert_fail({'test_field': 'foobar', 'a_dict': {'bar': 'bar'}}, schema)
+    await assert_fail({'test_field': 'foobar', 'a_dict': {'bar': 'foo'}}, schema)
+    await assert_fail({'test_field': 'foobar', 'a_dict': {'bar': 'bar'}}, schema)
 
 
-def test_root_relative_dependencies():
+@mark.asyncio
+async def test_root_relative_dependencies():
     # https://github.com/pyeve/cerberus/issues/288
     subschema = {'version': {'dependencies': '^repo'}}
     schema = {'package': {'allow_unknown': True, 'schema': subschema}, 'repo': {}}
-    assert_fail(
+    await assert_fail(
         {'package': {'repo': 'somewhere', 'version': 0}},
         schema,
         error=('package', ('package', 'schema'), errors.MAPPING_SCHEMA, subschema),
@@ -1087,17 +1167,18 @@ def test_root_relative_dependencies():
             )
         ],
     )
-    assert_success({'repo': 'somewhere', 'package': {'version': 1}}, schema)
+    await assert_success({'repo': 'somewhere', 'package': {'version': 1}}, schema)
 
 
-def test_dependencies_errors():
+@mark.asyncio
+async def test_dependencies_errors():
     v = Validator(
         {
             'field1': {'required': False},
             'field2': {'required': True, 'dependencies': {'field1': ['one', 'two']}},
         }
     )
-    assert_fail(
+    await assert_fail(
         {'field1': 'three', 'field2': 7},
         validator=v,
         error=(
@@ -1110,15 +1191,17 @@ def test_dependencies_errors():
     )
 
 
-def test_options_passed_to_nested_validators(validator):
+@mark.asyncio
+async def test_options_passed_to_nested_validators(validator):
     validator.schema = {
         'sub_dict': {'type': 'dict', 'schema': {'foo': {'type': 'string'}}}
     }
     validator.allow_unknown = True
-    assert_success({'sub_dict': {'foo': 'bar', 'unknown': True}}, validator=validator)
+    await assert_success({'sub_dict': {'foo': 'bar', 'unknown': True}}, validator=validator)
 
 
-def test_self_root_document():
+@mark.asyncio
+async def test_self_root_document():
     """
     Make sure self.root_document is always the root document. See:
     * https://github.com/pyeve/cerberus/pull/42
@@ -1141,12 +1224,13 @@ def test_self_root_document():
             },
         }
     }
-    assert_success(
+    await assert_success(
         {'sub': [{'foo': 'bar'}, {'foo': 'baz'}]}, validator=MyValidator(schema)
     )
 
 
-def test_validator_rule(validator):
+@mark.asyncio
+async def test_validator_rule(validator):
     def validate_name(field, value, error):
         if not value.islower():
             error(field, 'must be lowercase')
@@ -1156,106 +1240,111 @@ def test_validator_rule(validator):
         'age': {'type': 'integer'},
     }
 
-    assert_fail(
+    await assert_fail(
         {'name': 'ItsMe', 'age': 2},
         validator=validator,
         error=('name', (), errors.CUSTOM, None, ('must be lowercase',)),
     )
     assert validator.errors == {'name': ['must be lowercase']}
-    assert_success({'name': 'itsme', 'age': 2}, validator=validator)
+    await assert_success({'name': 'itsme', 'age': 2}, validator=validator)
 
 
-def test_validated(validator):
+@mark.asyncio
+async def test_validated(validator):
     validator.schema = {'property': {'type': 'string'}}
     document = {'property': 'string'}
-    assert validator.validated(document) == document
+    assert (await validator.validated(document)) == document
     document = {'property': 0}
-    assert validator.validated(document) is None
+    assert (await validator.validated(document)) is None
 
 
-def test_anyof():
+@mark.asyncio
+async def test_anyof():
     # prop1 must be either a number between 0 and 10
     schema = {'prop1': {'min': 0, 'max': 10}}
     doc = {'prop1': 5}
 
-    assert_success(doc, schema)
+    await assert_success(doc, schema)
 
     # prop1 must be either a number between 0 and 10 or 100 and 110
     schema = {'prop1': {'anyof': [{'min': 0, 'max': 10}, {'min': 100, 'max': 110}]}}
     doc = {'prop1': 105}
 
-    assert_success(doc, schema)
+    await assert_success(doc, schema)
 
     # prop1 must be either a number between 0 and 10 or 100 and 110
     schema = {'prop1': {'anyof': [{'min': 0, 'max': 10}, {'min': 100, 'max': 110}]}}
     doc = {'prop1': 50}
 
-    assert_fail(doc, schema)
+    await assert_fail(doc, schema)
 
     # prop1 must be an integer that is either be
     # greater than or equal to 0, or greater than or equal to 10
     schema = {'prop1': {'type': 'integer', 'anyof': [{'min': 0}, {'min': 10}]}}
-    assert_success({'prop1': 10}, schema)
+    await assert_success({'prop1': 10}, schema)
     # test that intermediate schemas do not sustain
     assert 'type' not in schema['prop1']['anyof'][0]
     assert 'type' not in schema['prop1']['anyof'][1]
     assert 'allow_unknown' not in schema['prop1']['anyof'][0]
     assert 'allow_unknown' not in schema['prop1']['anyof'][1]
-    assert_success({'prop1': 5}, schema)
+    await assert_success({'prop1': 5}, schema)
 
     exp_child_errors = [
         (('prop1',), ('prop1', 'anyof', 0, 'min'), errors.MIN_VALUE, 0),
         (('prop1',), ('prop1', 'anyof', 1, 'min'), errors.MIN_VALUE, 10),
     ]
-    assert_fail(
+    await assert_fail(
         {'prop1': -1},
         schema,
         error=(('prop1',), ('prop1', 'anyof'), errors.ANYOF, [{'min': 0}, {'min': 10}]),
         child_errors=exp_child_errors,
     )
     doc = {'prop1': 5.5}
-    assert_fail(doc, schema)
+    await assert_fail(doc, schema)
     doc = {'prop1': '5.5'}
-    assert_fail(doc, schema)
+    await assert_fail(doc, schema)
 
 
-def test_allof():
+@mark.asyncio
+async def test_allof():
     # prop1 has to be a float between 0 and 10
     schema = {'prop1': {'allof': [{'type': 'float'}, {'min': 0}, {'max': 10}]}}
     doc = {'prop1': -1}
-    assert_fail(doc, schema)
+    await assert_fail(doc, schema)
     doc = {'prop1': 5}
-    assert_success(doc, schema)
+    await assert_success(doc, schema)
     doc = {'prop1': 11}
-    assert_fail(doc, schema)
+    await assert_fail(doc, schema)
 
     # prop1 has to be a float and an integer
     schema = {'prop1': {'allof': [{'type': 'float'}, {'type': 'integer'}]}}
     doc = {'prop1': 11}
-    assert_success(doc, schema)
+    await assert_success(doc, schema)
     doc = {'prop1': 11.5}
-    assert_fail(doc, schema)
+    await assert_fail(doc, schema)
     doc = {'prop1': '11'}
-    assert_fail(doc, schema)
+    await assert_fail(doc, schema)
 
 
-def test_unicode_allowed():
+@mark.asyncio
+async def test_unicode_allowed():
     # issue 280
     doc = {'letters': u'♄εℓł☺'}
 
     schema = {'letters': {'type': 'string', 'allowed': ['a', 'b', 'c']}}
-    assert_fail(doc, schema)
+    await assert_fail(doc, schema)
 
     schema = {'letters': {'type': 'string', 'allowed': [u'♄εℓł☺']}}
-    assert_success(doc, schema)
+    await assert_success(doc, schema)
 
     schema = {'letters': {'type': 'string', 'allowed': ['♄εℓł☺']}}
     doc = {'letters': '♄εℓł☺'}
-    assert_success(doc, schema)
+    await assert_success(doc, schema)
 
 
 @mark.skipif(sys.version_info[0] < 3, reason='requires python 3.x')
-def test_unicode_allowed_py3():
+@mark.asyncio
+async def test_unicode_allowed_py3():
     """
     All strings are unicode in Python 3.x. Input doc and schema have equal strings and
     validation yield success.
@@ -1264,11 +1353,12 @@ def test_unicode_allowed_py3():
     # issue 280
     doc = {'letters': u'♄εℓł☺'}
     schema = {'letters': {'type': 'string', 'allowed': ['♄εℓł☺']}}
-    assert_success(doc, schema)
+    await assert_success(doc, schema)
 
 
 @mark.skipif(sys.version_info[0] > 2, reason='requires python 2.x')
-def test_unicode_allowed_py2():
+@mark.asyncio
+async def test_unicode_allowed_py2():
     """
     Python 2.x encodes value of allowed using default encoding if the string includes
     characters outside ASCII range. Produced string does not match input which is an
@@ -1278,10 +1368,11 @@ def test_unicode_allowed_py2():
     # issue 280
     doc = {'letters': u'♄εℓł☺'}
     schema = {'letters': {'type': 'string', 'allowed': ['♄εℓł☺']}}
-    assert_fail(doc, schema)
+    await assert_fail(doc, schema)
 
 
-def test_oneof():
+@mark.asyncio
+async def test_oneof():
     # prop1 can only only be:
     # - greater than 10
     # - greater than 0
@@ -1297,39 +1388,40 @@ def test_oneof():
     # document is not valid
     # prop1 not greater than 0, 10 or equal to -5
     doc = {'prop1': -1}
-    assert_fail(doc, schema)
+    await assert_fail(doc, schema)
 
     # document is valid
     # prop1 is less then 0, but is -5
     doc = {'prop1': -5}
-    assert_success(doc, schema)
+    await assert_success(doc, schema)
 
     # document is valid
     # prop1 greater than 0
     doc = {'prop1': 1}
-    assert_success(doc, schema)
+    await assert_success(doc, schema)
 
     # document is not valid
     # prop1 is greater than 0
     # and equal to 5
     doc = {'prop1': 5}
-    assert_fail(doc, schema)
+    await assert_fail(doc, schema)
 
     # document is not valid
     # prop1 is greater than 0
     # and greater than 10
     doc = {'prop1': 11}
-    assert_fail(doc, schema)
+    await assert_fail(doc, schema)
 
     # document is not valid
     # prop1 is greater than 0
     # and greater than 10
     # and equal to 15
     doc = {'prop1': 15}
-    assert_fail(doc, schema)
+    await assert_fail(doc, schema)
 
 
-def test_noneof():
+@mark.asyncio
+async def test_noneof():
     # prop1 can not be:
     # - greater than 10
     # - greater than 0
@@ -1344,33 +1436,34 @@ def test_noneof():
 
     # document is valid
     doc = {'prop1': -1}
-    assert_success(doc, schema)
+    await assert_success(doc, schema)
 
     # document is not valid
     # prop1 is equal to -5
     doc = {'prop1': -5}
-    assert_fail(doc, schema)
+    await assert_fail(doc, schema)
 
     # document is not valid
     # prop1 greater than 0
     doc = {'prop1': 1}
-    assert_fail(doc, schema)
+    await assert_fail(doc, schema)
 
     # document is not valid
     doc = {'prop1': 5}
-    assert_fail(doc, schema)
+    await assert_fail(doc, schema)
 
     # document is not valid
     doc = {'prop1': 11}
-    assert_fail(doc, schema)
+    await assert_fail(doc, schema)
 
     # document is not valid
     # and equal to 15
     doc = {'prop1': 15}
-    assert_fail(doc, schema)
+    await assert_fail(doc, schema)
 
 
-def test_anyof_allof():
+@mark.asyncio
+async def test_anyof_allof():
     # prop1 can be any number outside of [0-10]
     schema = {
         'prop1': {
@@ -1382,24 +1475,25 @@ def test_anyof_allof():
     }
 
     doc = {'prop1': 11}
-    assert_success(doc, schema)
+    await assert_success(doc, schema)
     doc = {'prop1': -1}
-    assert_success(doc, schema)
+    await assert_success(doc, schema)
     doc = {'prop1': 5}
-    assert_fail(doc, schema)
+    await assert_fail(doc, schema)
 
     doc = {'prop1': 11.5}
-    assert_success(doc, schema)
+    await assert_success(doc, schema)
     doc = {'prop1': -1.5}
-    assert_success(doc, schema)
+    await assert_success(doc, schema)
     doc = {'prop1': 5.5}
-    assert_fail(doc, schema)
+    await assert_fail(doc, schema)
 
     doc = {'prop1': '5.5'}
-    assert_fail(doc, schema)
+    await assert_fail(doc, schema)
 
 
-def test_anyof_schema(validator):
+@mark.asyncio
+async def test_anyof_schema(validator):
     # test that a list of schemas can be specified.
 
     valid_parts = [
@@ -1417,15 +1511,15 @@ def test_anyof_schema(validator):
     }
 
     # document is valid. each entry in 'parts' matches a type or schema
-    assert_success(document, schema, validator=validator)
+    await assert_success(document, schema, validator=validator)
 
     document['parts'].append({'product name': "Monitors", 'count': 18})
     # document is invalid. 'product name' does not match any valid schemas
-    assert_fail(document, schema, validator=validator)
+    await assert_fail(document, schema, validator=validator)
 
     document['parts'].pop()
     # document is valid again
-    assert_success(document, schema, validator=validator)
+    await assert_success(document, schema, validator=validator)
 
     document['parts'].append({'product name': "Monitors", 'count': 18})
     document['parts'].append(10)
@@ -1441,7 +1535,7 @@ def test_anyof_schema(validator):
         ),
     ]
 
-    _errors = assert_fail(
+    _errors = await assert_fail(
         document,
         schema,
         validator=validator,
@@ -1465,7 +1559,8 @@ def test_anyof_schema(validator):
     assert v_errors['parts'][-1][4] == ["must be of ['dict', 'string'] type"]
 
 
-def test_anyof_2():
+@mark.asyncio
+async def test_anyof_2():
     # these two schema should be the same
     schema1 = {
         'prop': {
@@ -1486,25 +1581,27 @@ def test_anyof_2():
     }
 
     doc = {'prop': {'val': 0}}
-    assert_success(doc, schema1)
-    assert_success(doc, schema2)
+    await assert_success(doc, schema1)
+    await assert_success(doc, schema2)
 
     doc = {'prop': {'val': '0'}}
-    assert_success(doc, schema1)
-    assert_success(doc, schema2)
+    await assert_success(doc, schema1)
+    await assert_success(doc, schema2)
 
     doc = {'prop': {'val': 1.1}}
-    assert_fail(doc, schema1)
-    assert_fail(doc, schema2)
+    await assert_fail(doc, schema1)
+    await assert_fail(doc, schema2)
 
 
-def test_anyof_type():
+@mark.asyncio
+async def test_anyof_type():
     schema = {'anyof_type': {'anyof_type': ['string', 'integer']}}
-    assert_success({'anyof_type': 'bar'}, schema)
-    assert_success({'anyof_type': 23}, schema)
+    await assert_success({'anyof_type': 'bar'}, schema)
+    await assert_success({'anyof_type': 23}, schema)
 
 
-def test_oneof_schema():
+@mark.asyncio
+async def test_oneof_schema():
     schema = {
         'oneof_schema': {
             'type': 'dict',
@@ -1514,20 +1611,22 @@ def test_oneof_schema():
             ],
         }
     }
-    assert_success({'oneof_schema': {'digits': 19}}, schema)
-    assert_success({'oneof_schema': {'text': '84'}}, schema)
-    assert_fail({'oneof_schema': {'digits': 19, 'text': '84'}}, schema)
+    await assert_success({'oneof_schema': {'digits': 19}}, schema)
+    await assert_success({'oneof_schema': {'text': '84'}}, schema)
+    await assert_fail({'oneof_schema': {'digits': 19, 'text': '84'}}, schema)
 
 
-def test_nested_oneof_type():
+@mark.asyncio
+async def test_nested_oneof_type():
     schema = {
         'nested_oneof_type': {'valuesrules': {'oneof_type': ['string', 'integer']}}
     }
-    assert_success({'nested_oneof_type': {'foo': 'a'}}, schema)
-    assert_success({'nested_oneof_type': {'bar': 3}}, schema)
+    await assert_success({'nested_oneof_type': {'foo': 'a'}}, schema)
+    await assert_success({'nested_oneof_type': {'bar': 3}}, schema)
 
 
-def test_nested_oneofs(validator):
+@mark.asyncio
+async def test_nested_oneofs(validator):
     validator.schema = {
         'abc': {
             'type': 'dict',
@@ -1571,22 +1670,24 @@ def test_nested_oneofs(validator):
         ]
     }
 
-    assert_fail(document, validator=validator)
+    await assert_fail(document, validator=validator)
     assert validator.errors == expected_errors
 
 
-def test_no_of_validation_if_type_fails(validator):
+@mark.asyncio
+async def test_no_of_validation_if_type_fails(validator):
     valid_parts = [
         {'schema': {'model number': {'type': 'string'}, 'count': {'type': 'integer'}}},
         {'schema': {'serial number': {'type': 'string'}, 'count': {'type': 'integer'}}},
     ]
     validator.schema = {'part': {'type': ['dict', 'string'], 'anyof': valid_parts}}
     document = {'part': 10}
-    _errors = assert_fail(document, validator=validator)
+    _errors = await assert_fail(document, validator=validator)
     assert len(_errors) == 1
 
 
-def test_issue_107(validator):
+@mark.asyncio
+async def test_issue_107(validator):
     schema = {
         'info': {
             'type': 'dict',
@@ -1594,41 +1695,44 @@ def test_issue_107(validator):
         }
     }
     document = {'info': {'name': 'my name'}}
-    assert_success(document, schema, validator=validator)
+    await assert_success(document, schema, validator=validator)
 
     v = Validator(schema)
-    assert_success(document, schema, v)
+    await assert_success(document, schema, v)
     # it once was observed that this behaves other than the previous line
-    assert v.validate(document)
+    assert await v.validate(document)
 
 
-def test_dont_type_validate_nulled_values(validator):
-    assert_fail({'an_integer': None}, validator=validator)
+@mark.asyncio
+async def test_dont_type_validate_nulled_values(validator):
+    await assert_fail({'an_integer': None}, validator=validator)
     assert validator.errors == {'an_integer': ['null value not allowed']}
 
 
-def test_dependencies_error(validator):
+@mark.asyncio
+async def test_dependencies_error(validator):
     schema = {
         'field1': {'required': False},
         'field2': {'required': True, 'dependencies': {'field1': ['one', 'two']}},
     }
-    validator.validate({'field2': 7}, schema)
+    await validator.validate({'field2': 7}, schema)
     exp_msg = errors.BasicErrorHandler.messages[
         errors.DEPENDENCIES_FIELD_VALUE.code
     ].format(field='field2', constraint={'field1': ['one', 'two']})
     assert validator.errors == {'field2': [exp_msg]}
 
 
-def test_dependencies_on_boolean_field_with_one_value():
+@mark.asyncio
+async def test_dependencies_on_boolean_field_with_one_value():
     # https://github.com/pyeve/cerberus/issues/138
     schema = {
         'deleted': {'type': 'boolean'},
         'text': {'dependencies': {'deleted': False}},
     }
     try:
-        assert_success({'text': 'foo', 'deleted': False}, schema)
-        assert_fail({'text': 'foo', 'deleted': True}, schema)
-        assert_fail({'text': 'foo'}, schema)
+        await assert_success({'text': 'foo', 'deleted': False}, schema)
+        await assert_fail({'text': 'foo', 'deleted': True}, schema)
+        await assert_fail({'text': 'foo'}, schema)
     except TypeError as e:
         if str(e) == "argument of type 'bool' is not iterable":
             raise AssertionError(
@@ -1640,21 +1744,23 @@ def test_dependencies_on_boolean_field_with_one_value():
             raise
 
 
-def test_dependencies_on_boolean_field_with_value_in_list():
+@mark.asyncio
+async def test_dependencies_on_boolean_field_with_value_in_list():
     # https://github.com/pyeve/cerberus/issues/138
     schema = {
         'deleted': {'type': 'boolean'},
         'text': {'dependencies': {'deleted': [False]}},
     }
 
-    assert_success({'text': 'foo', 'deleted': False}, schema)
-    assert_fail({'text': 'foo', 'deleted': True}, schema)
-    assert_fail({'text': 'foo'}, schema)
+    await assert_success({'text': 'foo', 'deleted': False}, schema)
+    await assert_fail({'text': 'foo', 'deleted': True}, schema)
+    await assert_fail({'text': 'foo'}, schema)
 
 
-def test_document_path():
+@mark.asyncio
+async def test_document_path():
     class DocumentPathTester(Validator):
-        def _validate_trail(self, constraint, field, value):
+        async def _validate_trail(self, constraint, field, value):
             """{'type': 'boolean'}"""
             test_doc = self.root_document
             for crumb in self.document_path:
@@ -1664,57 +1770,62 @@ def test_document_path():
     v = DocumentPathTester()
     schema = {'foo': {'schema': {'bar': {'trail': True}}}}
     document = {'foo': {'bar': {}}}
-    assert_success(document, schema, validator=v)
+    await assert_success(document, schema, validator=v)
 
 
-def test_excludes():
+@mark.asyncio
+async def test_excludes():
     schema = {
         'this_field': {'type': 'dict', 'excludes': 'that_field'},
         'that_field': {'type': 'dict'},
     }
-    assert_success({'this_field': {}}, schema)
-    assert_success({'that_field': {}}, schema)
-    assert_success({}, schema)
-    assert_fail({'that_field': {}, 'this_field': {}}, schema)
+    await assert_success({'this_field': {}}, schema)
+    await assert_success({'that_field': {}}, schema)
+    await assert_success({}, schema)
+    await assert_fail({'that_field': {}, 'this_field': {}}, schema)
 
 
-def test_mutual_excludes():
+@mark.asyncio
+async def test_mutual_excludes():
     schema = {
         'this_field': {'type': 'dict', 'excludes': 'that_field'},
         'that_field': {'type': 'dict', 'excludes': 'this_field'},
     }
-    assert_success({'this_field': {}}, schema)
-    assert_success({'that_field': {}}, schema)
-    assert_success({}, schema)
-    assert_fail({'that_field': {}, 'this_field': {}}, schema)
+    await assert_success({'this_field': {}}, schema)
+    await assert_success({'that_field': {}}, schema)
+    await assert_success({}, schema)
+    await assert_fail({'that_field': {}, 'this_field': {}}, schema)
 
 
-def test_required_excludes():
+@mark.asyncio
+async def test_required_excludes():
     schema = {
         'this_field': {'type': 'dict', 'excludes': 'that_field', 'required': True},
         'that_field': {'type': 'dict', 'excludes': 'this_field', 'required': True},
     }
-    assert_success({'this_field': {}}, schema, update=False)
-    assert_success({'that_field': {}}, schema, update=False)
-    assert_fail({}, schema)
-    assert_fail({'that_field': {}, 'this_field': {}}, schema)
+    await assert_success({'this_field': {}}, schema, update=False)
+    await assert_success({'that_field': {}}, schema, update=False)
+    await assert_fail({}, schema)
+    await assert_fail({'that_field': {}, 'this_field': {}}, schema)
 
 
-def test_multiples_exclusions():
+@mark.asyncio
+async def test_multiples_exclusions():
     schema = {
         'this_field': {'type': 'dict', 'excludes': ['that_field', 'bazo_field']},
         'that_field': {'type': 'dict', 'excludes': 'this_field'},
         'bazo_field': {'type': 'dict'},
     }
-    assert_success({'this_field': {}}, schema)
-    assert_success({'that_field': {}}, schema)
-    assert_fail({'this_field': {}, 'that_field': {}}, schema)
-    assert_fail({'this_field': {}, 'bazo_field': {}}, schema)
-    assert_fail({'that_field': {}, 'this_field': {}, 'bazo_field': {}}, schema)
-    assert_success({'that_field': {}, 'bazo_field': {}}, schema)
+    await assert_success({'this_field': {}}, schema)
+    await assert_success({'that_field': {}}, schema)
+    await assert_fail({'this_field': {}, 'that_field': {}}, schema)
+    await assert_fail({'this_field': {}, 'bazo_field': {}}, schema)
+    await assert_fail({'that_field': {}, 'this_field': {}, 'bazo_field': {}}, schema)
+    await assert_success({'that_field': {}, 'bazo_field': {}}, schema)
 
 
-def test_bad_excludes_fields(validator):
+@mark.asyncio
+async def test_bad_excludes_fields(validator):
     validator.schema = {
         'this_field': {
             'type': 'dict',
@@ -1723,7 +1834,7 @@ def test_bad_excludes_fields(validator):
         },
         'that_field': {'type': 'dict', 'excludes': 'this_field', 'required': True},
     }
-    assert_fail({'that_field': {}, 'this_field': {}}, validator=validator)
+    await assert_fail({'that_field': {}, 'this_field': {}}, validator=validator)
     handler = errors.BasicErrorHandler
     assert validator.errors == {
         'that_field': [
@@ -1739,39 +1850,45 @@ def test_bad_excludes_fields(validator):
     }
 
 
-def test_boolean_is_not_a_number():
+@mark.asyncio
+async def test_boolean_is_not_a_number():
     # https://github.com/pyeve/cerberus/issues/144
-    assert_fail({'value': True}, {'value': {'type': 'number'}})
+    await assert_fail({'value': True}, {'value': {'type': 'number'}})
 
 
-def test_min_max_date():
+@mark.asyncio
+async def test_min_max_date():
     schema = {'date': {'min': date(1900, 1, 1), 'max': date(1999, 12, 31)}}
-    assert_success({'date': date(1945, 5, 8)}, schema)
-    assert_fail({'date': date(1871, 5, 10)}, schema)
+    await assert_success({'date': date(1945, 5, 8)}, schema)
+    await assert_fail({'date': date(1871, 5, 10)}, schema)
 
 
-def test_dict_length():
+@mark.asyncio
+async def test_dict_length():
     schema = {'dict': {'minlength': 1}}
-    assert_fail({'dict': {}}, schema)
-    assert_success({'dict': {'foo': 'bar'}}, schema)
+    await assert_fail({'dict': {}}, schema)
+    await assert_success({'dict': {'foo': 'bar'}}, schema)
 
 
-def test_forbidden():
+@mark.asyncio
+async def test_forbidden():
     schema = {'user': {'forbidden': ['root', 'admin']}}
-    assert_fail({'user': 'admin'}, schema)
-    assert_success({'user': 'alice'}, schema)
+    await assert_fail({'user': 'admin'}, schema)
+    await assert_success({'user': 'alice'}, schema)
 
 
-def test_forbidden_number():
+@mark.asyncio
+async def test_forbidden_number():
     schema = {'amount': {'forbidden': (0, 0.0)}}
-    assert_fail({'amount': 0}, schema)
-    assert_fail({'amount': 0.0}, schema)
+    await assert_fail({'amount': 0}, schema)
+    await assert_fail({'amount': 0.0}, schema)
 
 
-def test_mapping_with_sequence_schema():
+@mark.asyncio
+async def test_mapping_with_sequence_schema():
     schema = {'list': {'schema': {'allowed': ['a', 'b', 'c']}}}
     document = {'list': {'is_a': 'mapping'}}
-    assert_fail(
+    await assert_fail(
         document,
         schema,
         error=(
@@ -1783,21 +1900,24 @@ def test_mapping_with_sequence_schema():
     )
 
 
-def test_sequence_with_mapping_schema():
+@mark.asyncio
+async def test_sequence_with_mapping_schema():
     schema = {'list': {'schema': {'foo': {'allowed': ['a', 'b', 'c']}}, 'type': 'dict'}}
     document = {'list': ['a', 'b', 'c']}
-    assert_fail(document, schema)
+    await assert_fail(document, schema)
 
 
-def test_type_error_aborts_validation():
+@mark.asyncio
+async def test_type_error_aborts_validation():
     schema = {'foo': {'type': 'string', 'allowed': ['a']}}
     document = {'foo': 0}
-    assert_fail(
+    await assert_fail(
         document, schema, error=('foo', ('foo', 'type'), errors.BAD_TYPE, 'string')
     )
 
 
-def test_dependencies_in_oneof():
+@mark.asyncio
+async def test_dependencies_in_oneof():
     # https://github.com/pyeve/cerberus/issues/241
     schema = {
         'a': {
@@ -1810,13 +1930,14 @@ def test_dependencies_in_oneof():
         'b': {},
         'c': {},
     }
-    assert_success({'a': 1, 'b': 'foo'}, schema)
-    assert_success({'a': 2, 'c': 'bar'}, schema)
-    assert_fail({'a': 1, 'c': 'foo'}, schema)
-    assert_fail({'a': 2, 'b': 'bar'}, schema)
+    await assert_success({'a': 1, 'b': 'foo'}, schema)
+    await assert_success({'a': 2, 'c': 'bar'}, schema)
+    await assert_fail({'a': 1, 'c': 'foo'}, schema)
+    await assert_fail({'a': 2, 'b': 'bar'}, schema)
 
 
-def test_allow_unknown_with_oneof_rules(validator):
+@mark.asyncio
+async def test_allow_unknown_with_oneof_rules(validator):
     # https://github.com/pyeve/cerberus/issues/251
     schema = {
         'test': {
@@ -1833,7 +1954,7 @@ def test_allow_unknown_with_oneof_rules(validator):
     # check regression and that allow unknown does not cause any different
     # than expected behaviour for one-of.
     document = {'test': {'known': 's'}}
-    validator(document, schema)
+    await validator(document, schema)
     _errors = validator._errors
     assert len(_errors) == 1
     assert_has_error(
@@ -1842,18 +1963,19 @@ def test_allow_unknown_with_oneof_rules(validator):
     assert len(_errors[0].child_errors) == 0
     # check that allow_unknown is actually applied
     document = {'test': {'known': 's', 'unknown': 'asd'}}
-    assert_success(document, validator=validator)
+    await assert_success(document, validator=validator)
 
 
 @mark.parametrize('constraint', (('Graham Chapman', 'Eric Idle'), 'Terry Gilliam'))
-def test_contains(constraint):
+@mark.asyncio
+async def test_contains(constraint):
     validator = Validator({'actors': {'contains': constraint}})
 
     document = {'actors': ('Graham Chapman', 'Eric Idle', 'Terry Gilliam')}
-    assert validator(document)
+    assert await validator(document)
 
     document = {'actors': ('Eric idle', 'Terry Jones', 'John Cleese', 'Michael Palin')}
-    assert not validator(document)
+    assert not await validator(document)
     assert errors.MISSING_MEMBERS in validator.document_error_tree['actors']
     missing_actors = validator.document_error_tree['actors'][
         errors.MISSING_MEMBERS
@@ -1861,54 +1983,57 @@ def test_contains(constraint):
     assert any(x in missing_actors for x in ('Eric Idle', 'Terry Gilliam'))
 
 
-def test_require_all_simple():
+@mark.asyncio
+async def test_require_all_simple():
     schema = {'foo': {'type': 'string'}}
     validator = Validator(require_all=True)
-    assert_fail(
+    await assert_fail(
         {},
         schema,
         validator,
         error=('foo', '__require_all__', errors.REQUIRED_FIELD, True),
     )
-    assert_success({'foo': 'bar'}, schema, validator)
+    await assert_success({'foo': 'bar'}, schema, validator)
     validator.require_all = False
-    assert_success({}, schema, validator)
-    assert_success({'foo': 'bar'}, schema, validator)
+    await assert_success({}, schema, validator)
+    await assert_success({'foo': 'bar'}, schema, validator)
 
 
-def test_require_all_override_by_required():
+@mark.asyncio
+async def test_require_all_override_by_required():
     schema = {'foo': {'type': 'string', 'required': False}}
     validator = Validator(require_all=True)
-    assert_success({}, schema, validator)
-    assert_success({'foo': 'bar'}, schema, validator)
+    await assert_success({}, schema, validator)
+    await assert_success({'foo': 'bar'}, schema, validator)
     validator.require_all = False
-    assert_success({}, schema, validator)
-    assert_success({'foo': 'bar'}, schema, validator)
+    await assert_success({}, schema, validator)
+    await assert_success({'foo': 'bar'}, schema, validator)
 
     schema = {'foo': {'type': 'string', 'required': True}}
     validator.require_all = True
-    assert_fail(
+    await assert_fail(
         {},
         schema,
         validator,
         error=('foo', ('foo', 'required'), errors.REQUIRED_FIELD, True),
     )
-    assert_success({'foo': 'bar'}, schema, validator)
+    await assert_success({'foo': 'bar'}, schema, validator)
     validator.require_all = False
-    assert_fail(
+    await assert_fail(
         {},
         schema,
         validator,
         error=('foo', ('foo', 'required'), errors.REQUIRED_FIELD, True),
     )
-    assert_success({'foo': 'bar'}, schema, validator)
+    await assert_success({'foo': 'bar'}, schema, validator)
 
 
 @mark.parametrize(
     "validator_require_all, sub_doc_require_all",
     list(itertools.product([True, False], repeat=2)),
 )
-def test_require_all_override_by_subdoc_require_all(
+@mark.asyncio
+async def test_require_all_override_by_subdoc_require_all(
     validator_require_all, sub_doc_require_all
 ):
     sub_schema = {"bar": {"type": "string"}}
@@ -1921,24 +2046,25 @@ def test_require_all_override_by_subdoc_require_all(
     }
     validator = Validator(require_all=validator_require_all)
 
-    assert_success({"foo": {"bar": "baz"}}, schema, validator)
+    await assert_success({"foo": {"bar": "baz"}}, schema, validator)
     if validator_require_all:
-        assert_fail({}, schema, validator)
+        await assert_fail({}, schema, validator)
     else:
-        assert_success({}, schema, validator)
+        await assert_success({}, schema, validator)
     if sub_doc_require_all:
-        assert_fail({"foo": {}}, schema, validator)
+        await assert_fail({"foo": {}}, schema, validator)
     else:
-        assert_success({"foo": {}}, schema, validator)
+        await assert_success({"foo": {}}, schema, validator)
 
 
-def test_require_all_and_exclude():
+@mark.asyncio
+async def test_require_all_and_exclude():
     schema = {
         'foo': {'type': 'string', 'excludes': 'bar'},
         'bar': {'type': 'string', 'excludes': 'foo'},
     }
     validator = Validator(require_all=True)
-    assert_fail(
+    await assert_fail(
         {},
         schema,
         validator,
@@ -1947,22 +2073,23 @@ def test_require_all_and_exclude():
             ('bar', '__require_all__', errors.REQUIRED_FIELD, True),
         ],
     )
-    assert_success({'foo': 'value'}, schema, validator)
-    assert_success({'bar': 'value'}, schema, validator)
-    assert_fail({'foo': 'value', 'bar': 'value'}, schema, validator)
+    await assert_success({'foo': 'value'}, schema, validator)
+    await assert_success({'bar': 'value'}, schema, validator)
+    await assert_fail({'foo': 'value', 'bar': 'value'}, schema, validator)
     validator.require_all = False
-    assert_success({}, schema, validator)
-    assert_success({'foo': 'value'}, schema, validator)
-    assert_success({'bar': 'value'}, schema, validator)
-    assert_fail({'foo': 'value', 'bar': 'value'}, schema, validator)
+    await assert_success({}, schema, validator)
+    await assert_success({'foo': 'value'}, schema, validator)
+    await assert_success({'bar': 'value'}, schema, validator)
+    await assert_fail({'foo': 'value', 'bar': 'value'}, schema, validator)
 
 
-def test_allowed_when_passing_list_of_dicts():
+@mark.asyncio
+async def test_allowed_when_passing_list_of_dicts():
     # https://github.com/pyeve/cerberus/issues/524
     doc = {'letters': [{'some': 'dict'}]}
     schema = {'letters': {'type': 'list', 'allowed': ['a', 'b', 'c']}}
 
-    assert_fail(
+    await assert_fail(
         doc,
         schema,
         error=(

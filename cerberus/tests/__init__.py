@@ -8,7 +8,7 @@ from cerberus import errors, Validator, SchemaError, DocumentError
 from cerberus.tests.conftest import sample_schema
 
 
-def assert_exception(exception, document={}, schema=None, validator=None, msg=None):
+async def assert_exception(exception, document={}, schema=None, validator=None, msg=None):
     """
     Tests whether a specific exception is raised. Optionally also tests whether the
     exception message is as expected.
@@ -17,23 +17,23 @@ def assert_exception(exception, document={}, schema=None, validator=None, msg=No
         validator = Validator()
     if msg is None:
         with pytest.raises(exception):
-            validator(document, schema)
+            await validator(document, schema)
     else:
         with pytest.raises(exception, match=re.escape(msg)):
-            validator(document, schema)
+            await validator(document, schema)
 
 
-def assert_schema_error(*args):
+async def assert_schema_error(*args):
     """Tests whether a validation raises an exception due to a malformed schema."""
-    assert_exception(SchemaError, *args)
+    await assert_exception(SchemaError, *args)
 
 
-def assert_document_error(*args):
+async def assert_document_error(*args):
     """Tests whether a validation raises an exception due to a malformed document."""
-    assert_exception(DocumentError, *args)
+    await assert_exception(DocumentError, *args)
 
 
-def assert_fail(
+async def assert_fail(
     document,
     schema=None,
     validator=None,
@@ -45,7 +45,7 @@ def assert_fail(
     """Tests whether a validation fails."""
     if validator is None:
         validator = Validator(sample_schema)
-    result = validator(document, schema, update)
+    result = await validator(document, schema, update)
     assert isinstance(result, bool)
     assert not result
 
@@ -71,11 +71,11 @@ def assert_fail(
     return actual_errors
 
 
-def assert_success(document, schema=None, validator=None, update=False):
+async def assert_success(document, schema=None, validator=None, update=False):
     """Tests whether a validation succeeds."""
     if validator is None:
         validator = Validator(sample_schema)
-    result = validator(document, schema, update)
+    result = await validator(document, schema, update)
     assert isinstance(result, bool)
     if not result:
         raise AssertionError(validator.errors)
@@ -146,14 +146,14 @@ def assert_not_has_error(_errors, *args, **kwargs):
         raise AssertionError('An unexpected error occurred.')
 
 
-def assert_bad_type(field, data_type, value):
-    assert_fail(
+async def assert_bad_type(field, data_type, value):
+    await assert_fail(
         {field: value}, error=(field, (field, 'type'), errors.BAD_TYPE, data_type)
     )
 
 
-def assert_normalized(document, expected, schema=None, validator=None):
+async def assert_normalized(document, expected, schema=None, validator=None):
     if validator is None:
         validator = Validator(sample_schema)
-    assert_success(document, schema, validator)
+    await assert_success(document, schema, validator)
     assert validator.document == expected

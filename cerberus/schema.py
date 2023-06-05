@@ -79,8 +79,10 @@ class DefinitionSchema(MutableMapping):
         )
 
         schema = self.expand(schema)
-        self.validate(schema)
         self.schema = schema
+
+    async def init(self):
+        await self.validate(self.schema)
 
     def __delitem__(self, key):
         _new_schema = self.schema.copy()
@@ -108,6 +110,11 @@ class DefinitionSchema(MutableMapping):
     def __setitem__(self, key, value):
         value = self.expand({0: value})[0]
         self.validate({key: value})
+        self.schema[key] = value
+
+    async def set_item(self, key, value):
+        value = self.expand({0: value})[0]
+        await self.validate({key: value})
         self.schema[key] = value
 
     def __str__(self):
@@ -251,7 +258,7 @@ class DefinitionSchema(MutableMapping):
     def regenerate_validation_schema(self):
         self.validation_schema = SchemaValidationSchema(self.validator)
 
-    def validate(self, schema=None):
+    async def validate(self, schema=None):
         """
         Validates a schema that defines rules against supported rules.
 
@@ -264,10 +271,10 @@ class DefinitionSchema(MutableMapping):
             schema = self.schema
         _hash = (mapping_hash(schema), mapping_hash(self.validator.types_mapping))
         if _hash not in self.validator._valid_schemas:
-            self._validate(schema)
+            await self._validate(schema)
             self.validator._valid_schemas.add(_hash)
 
-    def _validate(self, schema):
+    async def _validate(self, schema):
         if isinstance(schema, _str_type):
             schema = self.validator.schema_registry.get(schema, schema)
 
@@ -281,7 +288,7 @@ class DefinitionSchema(MutableMapping):
                     test_rules[rule.replace(" ", "_")] = constraint
                 test_schema[field] = test_rules
 
-        if not self.schema_validator(test_schema, normalize=False):
+        if not await self.schema_validator(test_schema, normalize=False):
             raise SchemaError(self.schema_validator.errors)
 
 
@@ -291,7 +298,7 @@ class UnvalidatedSchema(DefinitionSchema):
             schema = dict(schema)
         self.schema = schema
 
-    def validate(self, schema):
+    async def validate(self, schema):
         pass
 
     def copy(self):
@@ -340,7 +347,7 @@ class SchemaValidatorMixin(object):
         """The validator whose schema is being validated."""
         return self._config['target_validator']
 
-    def _check_with_bulk_schema(self, field, value):
+    async def _check_with_bulk_schema(self, field, value):
         # resolve schema registry reference
         if isinstance(value, _str_type):
             if value in self.known_rules_set_refs:
@@ -366,13 +373,13 @@ class SchemaValidatorMixin(object):
             allow_unknown=False,
             schema=self.target_validator.rules,
         )
-        validator(value, normalize=False)
+        await validator(value, normalize=False)
         if validator._errors:
             self._error(validator._errors)
         else:
             self.target_validator._valid_schemas.add(_hash)
 
-    def _check_with_dependencies(self, field, value):
+    async def _check_with_dependencies(self, field, value):
         if isinstance(value, _str_type):
             pass
         elif isinstance(value, Mapping):
@@ -381,18 +388,18 @@ class SchemaValidatorMixin(object):
                 schema={'valuesrules': {'type': 'list'}},
                 allow_unknown=True,
             )
-            if not validator(value, normalize=False):
+            if not await validator(value, normalize=False):
                 self._error(validator._errors)
         elif isinstance(value, Sequence):
             if not all(isinstance(x, Hashable) for x in value):
                 path = self.document_path + (field,)
                 self._error(path, 'All dependencies must be a hashable type.')
 
-    def _check_with_items(self, field, value):
+    async def _check_with_items(self, field, value):
         for i, schema in enumerate(value):
-            self._check_with_bulk_schema((field, i), schema)
+            await self._check_with_bulk_schema((field, i), schema)
 
-    def _check_with_schema(self, field, value):
+    async def _check_with_schema(self, field, value):
         try:
             value = self._handle_schema_reference_for_validator(field, value)
         except _Abort:
@@ -405,7 +412,7 @@ class SchemaValidatorMixin(object):
         validator = self._get_child_validator(
             document_crumb=field, schema=None, allow_unknown=self.root_allow_unknown
         )
-        validator(self._expand_rules_set_refs(value), normalize=False)
+        await validator(self._expand_rules_set_refs(value), normalize=False)
         if validator._errors:
             self._error(validator._errors)
         else:
@@ -442,7 +449,7 @@ class SchemaValidatorMixin(object):
             raise _Abort
         return definition
 
-    def _validate_logical(self, rule, field, value):
+    async def _validate_logical(self, rule, field, value):
         """{'allowed': ('allof', 'anyof', 'noneof', 'oneof')}"""
         if not isinstance(value, Sequence):
             self._error(field, errors.BAD_TYPE)
@@ -462,7 +469,7 @@ class SchemaValidatorMixin(object):
             if _hash in self.target_validator._valid_schemas:
                 continue
 
-            validator(constraints, normalize=False)
+            await validator(constraints, normalize=False)
             if validator._errors:
                 self._error(validator._errors)
             else:

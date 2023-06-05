@@ -7,7 +7,8 @@ from cerberus.tests import assert_fail, assert_success
 from cerberus.tests.conftest import sample_schema
 
 
-def test_contextual_data_preservation():
+@mark.asyncio
+async def test_contextual_data_preservation():
     class InheritedValidator(cerberus.Validator):
         def __init__(self, *args, **kwargs):
             if 'working_dir' in kwargs:
@@ -22,7 +23,7 @@ def test_contextual_data_preservation():
     v = InheritedValidator(
         {'test': {'type': 'list', 'schema': {'type': 'test'}}}, working_dir='/tmp'
     )
-    assert_success({'test': ['foo']}, validator=v)
+    await assert_success({'test': ['foo']}, validator=v)
 
 
 def test_docstring_parsing():
@@ -46,7 +47,8 @@ def test_docstring_parsing():
 
 # TODO remove 'validator' as rule parameter with the next major release
 @mark.parametrize('rule', ('check_with', 'validator'))
-def test_check_with_method(rule):
+@mark.asyncio
+async def test_check_with_method(rule):
     # https://github.com/pyeve/cerberus/issues/265
     class MyValidator(cerberus.Validator):
         def _check_with_oddity(self, field, value):
@@ -54,8 +56,8 @@ def test_check_with_method(rule):
                 self._error(field, "Must be an odd number")
 
     v = MyValidator(schema={'amount': {rule: 'oddity'}})
-    assert_success(document={'amount': 1}, validator=v)
-    assert_fail(
+    await assert_success(document={'amount': 1}, validator=v)
+    await assert_fail(
         document={'amount': 2},
         validator=v,
         error=('amount', (), cerberus.errors.CUSTOM, None, ('Must be an odd number',)),
@@ -64,22 +66,24 @@ def test_check_with_method(rule):
 
 # TODO remove test with the next major release
 @mark.parametrize('rule', ('check_with', 'validator'))
-def test_validator_method(rule):
+@mark.asyncio
+async def test_validator_method(rule):
     class MyValidator(cerberus.Validator):
         def _validator_oddity(self, field, value):
             if not value & 1:
                 self._error(field, "Must be an odd number")
 
     v = MyValidator(schema={'amount': {rule: 'oddity'}})
-    assert_success(document={'amount': 1}, validator=v)
-    assert_fail(
+    await assert_success(document={'amount': 1}, validator=v)
+    await assert_fail(
         document={'amount': 2},
         validator=v,
         error=('amount', (), cerberus.errors.CUSTOM, None, ('Must be an odd number',)),
     )
 
 
-def test_schema_validation_can_be_disabled_in_schema_setter():
+@mark.asyncio
+async def test_schema_validation_can_be_disabled_in_schema_setter():
     class NonvalidatingValidator(cerberus.Validator):
         """
         Skips schema validation to speed up initialization
@@ -97,5 +101,6 @@ def test_schema_validation_can_be_disabled_in_schema_setter():
                 self._schema = cerberus.schema.UnvalidatedSchema(schema)
 
     v = NonvalidatingValidator(schema=sample_schema)
-    assert v.validate(document={'an_integer': 1})
-    assert not v.validate(document={'an_integer': 'a'})
+    await v.init()
+    assert (await v.validate(document={'an_integer': 1}))
+    assert not (await v.validate(document={'an_integer': 'a'}))
